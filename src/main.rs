@@ -1,66 +1,49 @@
-use std::collections::HashMap;
+mod rooms;
 
-use rocket::futures::lock::Mutex;
-use rocket::response::stream::{Event, EventStream};
-use rocket::tokio::select;
-use rocket::tokio::sync::broadcast::*;
-use rocket::{get, launch, post, routes, Build, Rocket};
-use rocket::{Shutdown, State};
+use actix_web::HttpMessage;
+use actix_web::HttpResponse;
+use actix_web::http::StatusCode;
+use actix_web::web::Json;
+use actix_web::App;
+use actix_web::HttpServer;
+use actix_web::{
+    get, post,
+    web::{Data, Path},
+};
+use actix_web_lab::sse;
+use rooms::Rooms;
 
 #[get("/")]
-fn hello() -> &'static str {
+async fn hello() -> &'static str {
     "Hello, world!"
 }
 
-type Rooms = Mutex<HashMap<String, Sender<String>>>;
-
-#[get("/connect/<room>")]
-async fn connect_to_room(rooms: &State<Rooms>, room: &str, mut end: Shutdown) -> EventStream![] {
-    let mut lock = rooms.lock().await;
-    let mut rx = match lock.get(room) {
-        Some(x) => x.subscribe(),
-        None => {
-            let (tx, rx) = channel(128);
-            lock.insert(room.to_string(), tx);
-            rx
-        }
-    };
-    drop(lock);
-
-    EventStream! {
-        loop {
-            select! {
-                msg = rx.recv() => {
-                    match msg {
-                        Ok(m) => yield Event::data(m),
-                        Err(_) => break,
-                    }
-                },
-                _ = &mut end => break,
-            };
-        }
-    }
+#[get("/connect/{room}")]
+async fn connect_to_room(rooms: Data<Rooms>, room: Path<String>) -> sse::Sse<sse::ChannelStream> {
+    rooms.subscribe(room.as_str()).await
 }
 
-#[post("/connect/<room>", data = "<body>")]
-async fn send_to_room(room: &str, rooms: &State<Rooms>, body: String) {
-    let lock = rooms.lock().await;
-    match lock.get(room) {
-        Some(s) => {
-            match s.send(body) {
-                Ok(_) => (),
-                Err(e) => {
-                    eprintln!("Error sending message: {e}\n\nThe message was: {}", e.0);
-                }
-            };
-        }
-        None => (),
-    }
+#[post("/connect/{room}")]
+async fn send_to_room(room: Path<String>, rooms: Data<Rooms>, body: Json<String>) -> HttpResponse {
+    rooms.send(room.as_str(), body.as_str()).await;
+
+    HttpResponse::new(StatusCode::OK)
 }
 
-#[launch]
-fn launch() -> Rocket<Build> {
-    rocket::build()
-    .manage(Mutex::new(HashMap::<String, Sender<String>>::new()))
-    .mount("/", routes![hello, connect_to_room, send_to_room])
+#[actix_web::main]
+async fn main() -> Result<(), std::io::Error> {
+
+
+
+    HttpServer::new(|| {
+        App::new()
+            .service(hello)
+            .service(connect_to_room)
+            .service(send_to_room)
+            .app_data(Rooms::new())
+    })
+    .bind("127.0.0.1:8080")
+    .unwrap()
+    .run()
+    .await
 }
