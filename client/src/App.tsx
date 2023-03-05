@@ -8,12 +8,13 @@ function App() {
   //React.useEffect()
 
   async function sendMessage(message: string) {
-    await fetch("http://localhost:8000/connect/defRoom", {
+    await fetch("http://localhost:8080/connect/defRoom", {
       method: "POST",
       headers: {
-        'Content-Type' : 'text/plain'
+        'Content-Type' : 'application/json',
+        'Access-Control-Allow-Origin': "*",
       },
-      body: message
+      body: JSON.stringify(message)
     }).then((ret) => {
       console.log(ret.ok?"Message sent ok": "error sending message")
     })

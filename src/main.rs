@@ -25,6 +25,7 @@ async fn connect_to_room(rooms: Data<Rooms>, room: Path<String>) -> sse::Sse<sse
 
 #[post("/connect/{room}")]
 async fn send_to_room(room: Path<String>, rooms: Data<Rooms>, body: Json<String>) -> HttpResponse {
+    println!("Request to print {room:?} to room {body:?} recieved");
     rooms.send(room.as_str(), body.as_str()).await;
 
     HttpResponse::new(StatusCode::OK)
@@ -40,7 +41,13 @@ async fn main() -> Result<(), std::io::Error> {
             .service(hello)
             .service(connect_to_room)
             .service(send_to_room)
-            .app_data(Rooms::new())
+            .app_data(Data::new(Rooms::new()))
+            .wrap(
+                actix_cors::Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header()
+            )
     })
     .bind("127.0.0.1:8080")
     .unwrap()
