@@ -25,7 +25,6 @@ async fn connect_to_room(rooms: Data<Rooms>, room: Path<String>) -> sse::Sse<sse
 
 #[post("/connect/{room}")]
 async fn send_to_room(room: Path<String>, rooms: Data<Rooms>, body: Json<String>) -> HttpResponse {
-    println!("Request to print {room:?} to room {body:?} recieved");
     rooms.send(room.as_str(), body.as_str()).await;
 
     HttpResponse::new(StatusCode::OK)
