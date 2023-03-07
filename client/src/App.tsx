@@ -4,8 +4,16 @@ import './App.css'
 function App() {
 
   let [messages, setMessages] = React.useState<Array<string>>([]);
-  let textBox = React.useRef(null);
-  //React.useEffect()
+  let textBox: React.MutableRefObject<null | HTMLInputElement> = React.useRef(null);
+
+  React.useEffect(() => {
+    let message_stream = new EventSource("http://localhost:8080/connect/defRoom")
+    message_stream.onmessage = (event) => {
+      console.log(event.data);
+      setMessages([...messages, event.data])
+      console.log(messages)
+    }
+  }, [])
 
   async function sendMessage(message: string) {
     await fetch("http://localhost:8080/connect/defRoom", {
@@ -21,8 +29,9 @@ function App() {
   }
 
   function submit(key:React.KeyboardEvent) {
-    if (key.key === "Enter") {
-      sendMessage("click")
+    if (key.key === "Enter" && textBox.current != null) {
+      sendMessage(textBox.current.value)
+      textBox.current.value = "";
     }
   }
 
