@@ -7,7 +7,7 @@ function App() {
   let textBox: React.MutableRefObject<null | HTMLInputElement> = React.useRef(null);
 
   React.useEffect(() => {
-    let message_stream = new EventSource("http://localhost:8080/connect/defRoom")
+    let message_stream = new WebSocket("ws://localhost:8080/connect/defRoom")
     message_stream.onmessage = (event) => {
       console.log(event.data);
       setMessages([...messages, event.data])

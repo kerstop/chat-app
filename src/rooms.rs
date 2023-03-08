@@ -1,6 +1,7 @@
 use actix::{Actor, StreamHandler, Addr, Message};
 use actix_web::{HttpResponse, Error, web, HttpRequest};
 use actix_web_actors::ws;
+use log::info;
 use tokio_stream::Stream;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
@@ -59,35 +60,36 @@ pub struct Rooms {
 
 impl Rooms {
     pub fn new() -> Self {
-        let rooms = Rooms {
+        Rooms {
             list: Default::default(),
-        };
-        rooms
+        }
     }
 
     pub async fn subscribe(&self, room: &str, req: &HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
         const KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
 
-        match self.list.read().await.get(room) {
+        let mut write_guard = self.list.write().await;
+
+        return match write_guard.get(room) {
             Some(room_stream) => {
-                return ws::start(Subscriber { tx: room_stream.clone() }, req, stream);
+                ws::start(Subscriber { tx: room_stream.clone() }, req, stream)
             }
             None => {
-                let (tx, rx) = broadcast::channel(1024);
-                self.list.write().await.insert(room.to_string(), tx.clone());
-                return ws::start(Subscriber { tx }, req, stream);
+                let (tx, _) = broadcast::channel(1024);
+                write_guard.insert(room.to_string(), tx.clone());
+                ws::start(Subscriber { tx }, req, stream)
 
             }
         }
     }
 
     pub async fn send(&self, room: &str, message: &str) {
-
-        match self.list.read().await.get(room) {
-            Some(room) => {
-                room.send(ChatMessage { txt: message.to_string() });
+        let read_guard = self.list.read().await;
+        match read_guard.get(room) {
+            Some(tx) => {
+                tx.send(ChatMessage { txt: message.to_string() });
             }
-            None => return,
+            None => (),
         }
     }
 }
