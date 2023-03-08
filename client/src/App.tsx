@@ -3,15 +3,20 @@ import './App.css'
 
 function App() {
 
-  let [messages, setMessages] = React.useState<Array<string>>([]);
+  let [messages, setMessages] = React.useState<Array<string>>(["test"]);
   let textBox: React.MutableRefObject<null | HTMLInputElement> = React.useRef(null);
+
+  function append_message(msg: string) {
+    messages.push(msg);
+    setMessages(messages.slice())
+  }
 
   React.useEffect(() => {
     let message_stream = new WebSocket("ws://localhost:8080/connect/defRoom")
     message_stream.onmessage = (event) => {
       console.log(event.data);
-      setMessages([...messages, event.data])
-      console.log(messages)
+      append_message(event.data);
+      console.log(messages);
     }
   }, [])
 
@@ -38,7 +43,7 @@ function App() {
   return <>
     <input ref={textBox} onKeyDown={submit}></input>
     <div>
-      {messages.map((msg) => { return (<div>{msg}</div>)})}
+      {messages.map((msg,i) => { return (<div key={i}>{msg}</div>)})}
     </div>
   </>
 }
